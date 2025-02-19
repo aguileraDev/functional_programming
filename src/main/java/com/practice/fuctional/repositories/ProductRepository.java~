@@ -1,0 +1,4 @@
+package com.practice.fuctional.repositories;
+
+public interface ProductRepository extends {
+}
