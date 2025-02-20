@@ -5,17 +5,19 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import org.springframework.data.relational.core.mapping.Table;
+import org.bson.codecs.pojo.annotations.BsonId;
+import org.springframework.data.mongodb.core.mapping.Document;
 
-@Table
+
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class Product implements Comparable<Product> {
+@Document(collection = "products")
+public class Product  {
 
-
-    private Long id;
+    @BsonId
+    private String id;
 
     private String name;
     Double price;
@@ -25,8 +27,5 @@ public class Product implements Comparable<Product> {
         this.name = name;
     }
 
-    @Override
-    public int compareTo(Product other) {
-        return Double.compare(this.price, other.price);
-    }
+
 }
