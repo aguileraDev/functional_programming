@@ -6,7 +6,10 @@ import com.practice.fuctional.repositories.ProductRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Deque;
@@ -28,15 +31,19 @@ import java.util.stream.Collectors;
 
 
 @Service
-@RequiredArgsConstructor
 public class ProductService {
 
     private final ProductRepository productRepository;
+
+    public ProductService(ProductRepository productRepository) {
+        this.productRepository = productRepository;
+    }
     private final Supplier<List<Product>> defaultProductSupplier = () -> List.of(
             new Product(1L, "Cafe", 24.0),
             new Product(2L, "UPC", 86.0),
             new Product(3L, "Pan", 12.0)
     );
+
 
     private final Consumer<Product> logProduct = product -> System.out.printf("product added %s price %.2f", product.getName(), product.getPrice());
 
@@ -59,7 +66,7 @@ public class ProductService {
     //Set para evitar productos duplicados por nombre
     private final Set<String> uniqueProductName = new HashSet<>();
 
-    public List<ProductDTO> getAllProducts(){
+    /*public List<ProductDTO> getAllProducts(){
         List<Product> products = productRepository.findAll();
 
         if(products.isEmpty()){
@@ -161,5 +168,71 @@ public class ProductService {
                 .filter(isCheap)
                 .map(this.productToDto)
                 .toList();
+    } */
+
+    // Flux / Obtiene los productos - map - defaultIfEmpty - switchIfEmpty
+
+    public Flux<ProductDTO> getAllProductsFlux(){
+        return
+                         productRepository.findAll()
+                        .map(productToDto)
+                        .switchIfEmpty(Flux.fromIterable(defaultProductSupplier.get())
+                        .map(productToDto))
+                        .delayElements(Duration.ofMillis(500));
+
+    }
+
+    public Mono<ProductDTO> getProductById(Long id){
+        return productRepository.findById(id)
+                .flatMap(product -> Mono.just(productToDto.apply(product)))
+                .doOnError(error -> System.out.printf("Error al buscar el producto: %s", error.getMessage()))
+                .defaultIfEmpty(new ProductDTO("Producto no encontrado", 0.0));
+    }
+
+    //agregamos un nuevo producto - doOnNext
+    public Mono<ProductDTO> addProduct(ProductDTO productDTO){
+
+        return Mono.fromSupplier(() -> {
+            Product product = new Product();
+            product.setName(productDTO.name());
+            product.setPrice(productDTO.price());
+            productRepository.save(product);
+            return product;
+        }).doOnNext(logProduct)
+                .map(productToDto);
+    }
+
+    //obtener los productos baratos / isCheap
+
+    public Flux<ProductDTO> getCheapProducts(){
+        return productRepository.findAll()
+                .filter(isCheap)
+                .map(productToDto);
+    }
+
+    //Obtener los ultimos 3 agregados
+    public Flux<ProductDTO> getLastProducts(){
+        return productRepository.findAll()
+                .take(3)
+                .map(productToDto);
+    }
+
+    //eliminar por id  - doOnError
+    public Mono<Void> deleteProduct(Long id){
+
+        return productRepository.deleteById(id)
+                .doOnError(error -> System.out.printf("Error al eliminar el producto: %s", error.getMessage()))
+                .then();
+
+/*        return productRepository.findById(id)
+                .flatMap(product -> productRepository.delete(product))
+                .doOnError(error -> System.out.printf("Error al eliminar el producto: %s", error.getMessage()))
+                .then();*/
+    }
+
+    //contar productos - collectList
+
+    public Mono<Long> countProducts(){
+        return productRepository.count();
     }
 }
